@@ -1,0 +1,118 @@
+/**
+ * MCP Server function for Retrieve an object via a presigned URL
+ */
+
+import axios, { AxiosResponse } from 'axios';
+
+interface APIConfig {
+    baseUrl: string;
+    apiKey: string;
+}
+
+interface MCPRequest {
+    params?: {
+        arguments?: Record<string, any>;
+    };
+}
+
+interface MCPToolResult {
+    content: string;
+    isError: boolean;
+}
+
+interface ToolDefinition {
+    name: string;
+    description: string;
+    parameters: Record<string, {
+        type: string;
+        required: boolean;
+        description: string;
+    }>;
+}
+
+interface Tool {
+    definition: ToolDefinition;
+    handler: (ctx: any, request: MCPRequest) => Promise<MCPToolResult>;
+}
+
+class MCPToolResultImpl implements MCPToolResult {
+    constructor(
+        public content: string,
+        public isError: boolean = false
+    ) {}
+}
+
+function getGet_Object_Sign_Bucket_Name_WildcardHandler(config: APIConfig): (ctx: any, request: MCPRequest) => Promise<MCPToolResult> {
+    return async function(ctx: any, request: MCPRequest): Promise<MCPToolResult> {
+        try {
+            const args = request?.params?.arguments || {};
+            if (typeof args !== 'object') {
+                return new MCPToolResultImpl("Invalid arguments object", true);
+            }
+            
+            const queryParams: string[] = [];
+    if (args.download !== undefined) {
+        queryParams.push(`download=${args.download}`);
+    }
+    if (args.token !== undefined) {
+        queryParams.push(`token=${args.token}`);
+    }
+    if (args.bucketName !== undefined) {
+        queryParams.push(`bucketName=${args.bucketName}`);
+    }
+    if (args.* !== undefined) {
+        queryParams.push(`*=${args.*}`);
+    }
+            
+            const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
+            const url = `${config.baseUrl}/api/v2/get_object_sign_bucket_name_wildcard${queryString}`;
+            
+            const headers = {
+                'Authorization': `Bearer ${config.apiKey}`,
+                'Accept': 'application/json'
+            };
+            
+            const response: AxiosResponse = await axios.get(url, { headers });
+            
+            if (response.status >= 400) {
+                return new MCPToolResultImpl(`API error: ${response.data}`, true);
+            }
+            
+            const prettyJSON = JSON.stringify(response.data, null, 2);
+            return new MCPToolResultImpl(prettyJSON);
+            
+        } catch (error: any) {
+            if (error.response) {
+                return new MCPToolResultImpl(`Request failed: ${error.response.data}`, true);
+            }
+            return new MCPToolResultImpl(`Unexpected error: ${error.message}`, true);
+        }
+    };
+}
+
+function createGet_Object_Sign_Bucket_Name_WildcardTool(config: APIConfig): Tool {
+    return {
+        definition: {
+            name: "get_object_sign_bucket_name_wildcard",
+            description: "Retrieve an object via a presigned URL",
+            parameters: {
+        download: { type: "string", required: false, description: "" },
+        token: { type: "string", required: true, description: "" },
+        bucketName: { type: "string", required: true, description: "" },
+        *: { type: "string", required: true, description: "" },
+            }
+        },
+        handler: getGet_Object_Sign_Bucket_Name_WildcardHandler(config)
+    };
+}
+
+export {
+    APIConfig,
+    MCPRequest,
+    MCPToolResult,
+    MCPToolResultImpl,
+    Tool,
+    ToolDefinition,
+    getGet_Object_Sign_Bucket_Name_WildcardHandler,
+    createGet_Object_Sign_Bucket_Name_WildcardTool
+};
